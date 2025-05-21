@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>공컨테이너 재배치(ECR) 최적화 대시보드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; scroll-behavior: smooth; }
+        .chart-container { position: relative; width: 100%; max-width: 600px; margin-left: auto; margin-right: auto; height: 300px; max-height: 400px; }
+        @media (min-width: 768px) { .chart-container { height: 350px; } }
+        .nav-link { padding: 0.5rem 1rem; border-radius: 0.375rem; transition: background-color 0.3s ease; }
+        .nav-link:hover, .nav-link.active { background-color: #A78BFA; color: white; } /* Violet-400 */
+        .section-title { font-size: 1.875rem; font-weight: bold; margin-bottom: 1rem; color: #5B21B6; } /* Violet-700 */
+        .card { background-color: white; border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); padding: 1.5rem; margin-bottom: 1rem; }
+        .tab-button { padding: 0.5rem 1rem; border-radius: 0.375rem; cursor: pointer; transition: background-color 0.3s; border: 1px solid transparent; }
+        .tab-button.active { background-color: #8B5CF6; color: white; border-color: #7C3AED; } /* Violet-500, Violet-600 */
+        .tab-button:not(.active):hover { background-color: #EDE9FE; } /* Violet-100 */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .stat-value { font-size: 2rem; font-weight: bold; color: #7C3AED; } /* Violet-600 */
+        .stat-label { font-size: 0.875rem; color: #555; }
+        .flow-diagram-step { background-color: #F5F3FF; border: 1px solid #DDD6FE; padding: 0.75rem; border-radius: 0.375rem; text-align: center; margin: 0.5rem 0; }
+        .flow-diagram-arrow { text-align: center; font-size: 1.5rem; color: #8B5CF6; margin: 0.25rem 0; }
+        .tooltip { position: absolute; background-color: #333; color: white; padding: 5px 10px; border-radius: 4px; font-size: 0.875rem; z-index: 100; display: none; white-space: pre-wrap; }
+    </style>
+    <!-- Visualization & Content Choices:
+        - ECR 연간 비용 (보고서 I.A): Goal: Inform. Viz: Big Number Stat (HTML/Tailwind). Interaction: Hover for details. Justification: Key metric highlight.
+        - ECR 운영 비용 비중 (보고서 I.A): Goal: Inform/Compare. Viz: Donut Chart (Chart.js). Interaction: Hover. Justification: Proportion visualization.
+        - Maersk 혁신 이니셔티브 (보고서 II, 표1): Goal: Organize/Inform. Viz: Interactive Tabs (HTML/CSS/JS) with icons. Interaction: Click tab. Justification: Clear presentation of multiple strategies.
+        - 수학적 모델 유형 (보고서 III, 표2): Goal: Organize/Inform/Compare. Viz: Interactive Tabs (HTML/CSS/JS). Interaction: Click tab for model details. Justification: Structured overview of complex models.
+        - 최적화 전략별 비용 절감 효과 (보고서 IV.A): Goal: Compare/Inform. Viz: Bar Chart (Chart.js). Interaction: Hover for values. Justification: Visual comparison of savings.
+        - Maersk 삼각운송 효과 (컨테이너 재활용률, CO2 감소) (보고서 II.D, IV.B): Goal: Inform. Viz: Big Number Stats (HTML/Tailwind). Interaction: Hover for details. Justification: Quantifiable benefits of a specific strategy.
+        - ECR 모델 발전 과정 (보고서 III.D): Goal: Show Change. Viz: Simple HTML/CSS flow diagram. Interaction: Static. Justification: Visualizing evolution.
+        - 모든 차트는 Chart.js (Canvas) 사용. 다이어그램은 HTML/CSS 사용. NO SVG graphics used. NO Mermaid JS used. -->
+    </head>
+<body class="bg-violet-50 text-gray-700">
+
+    <nav id="main-nav" class="sticky top-0 z-50 bg-white shadow-md py-3">
+        <div class="container mx-auto flex flex-wrap justify-center items-center px-4">
+            <a href="#intro" class="nav-link text-gray-600 hover:text-violet-600">개요</a>
+            <a href="#maersk-innovations" class="nav-link text-gray-600 hover:text-violet-600">Maersk 혁신</a>
+            <a href="#optimization-models" class="nav-link text-gray-600 hover:text-violet-600">최적화 모델</a>
+            <a href="#quantitative-impacts" class="nav-link text-gray-600 hover:text-violet-600">정량적 효과</a>
+            <a href="#challenges-future" class="nav-link text-gray-600 hover:text-violet-600">미래 전망</a>
+        </div>
+    </nav>
+
+    <header class="py-12 bg-gradient-to-r from-violet-600 to-purple-600 text-white text-center">
+        <div class="container mx-auto px-4">
+            <h1 class="text-4xl font-bold mb-2">공컨테이너 재배치(ECR) 최적화</h1>
+            <p class="text-xl">Maersk 혁신 사례, 수학적 모델 및 미래 전망 분석</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-8">
+        
+        <section id="intro" class="mb-12 scroll-mt-20">
+            <h2 class="section-title">I. ECR 문제 개요</h2>
+            <p class="mb-6 text-gray-600">공컨테이너 재배치(ECR)는 글로벌 무역 불균형으로 인해 발생하는 해운 산업의 고질적인 문제입니다. 일부 지역에서는 수입량이 수출량을 초과하여 컨테이너가 남아도는 반면, 다른 지역에서는 수출을 위한 컨테이너가 부족해집니다. 이로 인해 막대한 비용과 복잡성을 수반하는 빈 컨테이너 이동 작업이 필수적으로 발생하며, 이는 전체 공급망 효율성과 환경에도 큰 영향을 미칩니다. 이 섹션에서는 ECR 문제의 규모, 비용, 주요 영향에 대해 살펴봅니다.</p>
+            
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                <div class="card text-center">
+                    <h3 class="font-semibold text-lg mb-2 text-violet-700">연간 ECR 추정 비용</h3>
+                    <p class="stat-value" data-tooltip-text="출처: Boston Consulting Group 등 다수 연구 (보고서 I.A)">$150억 - $200억</p>
+                    <p class="stat-label">글로벌 해운 산업</p>
+                </div>
+                <div class="card text-center">
+                     <h3 class="font-semibold text-lg mb-2 text-violet-700">ECR 운영 비용 비중</h3>
+                    <div class="chart-container h-48">
+                        <canvas id="ecrOperatingCostChart"></canvas>
+                    </div>
+                </div>
+                <div class="card md:col-span-2 lg:col-span-1">
+                    <h3 class="font-semibold text-lg mb-2 text-violet-700">ECR의 주요 영향</h3>
+                    <ul class="list-none space-y-2">
+                        <li class="flex items-center"><span class="text-xl mr-2 text-violet-500">💰</span>경제적 부담 (운송, 보관, 임차료)</li>
+                        <li class="flex items-center"><span class="text-xl mr-2 text-violet-500">⚙️</span>운영 비효율 (항만 혼잡, 자산 활용도 저하)</li>
+                        <li class="flex items-center"><span class="text-xl mr-2 text-violet-500">🌍</span>환경적 악영향 ($CO_2$ 배출, 연료 소비 증가)</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="card">
+                <h3 class="font-semibold text-lg mb-2 text-violet-700">ECR 문제의 복잡성</h3>
+                <p class="text-gray-600">ECR 문제는 단순한 컨테이너 이동을 넘어, 수많은 항구, 방대한 컨테이너 선단 관리, 선박 스케줄, 내륙 운송, 야적장 용량 등 다양한 요소와 불확실한 수요/공급 상황을 동시에 고려해야 하는 복잡한 과제입니다. (보고서 I.A)</p>
+            </div>
+        </section>
+
+        <section id="maersk-innovations" class="mb-12 scroll-mt-20">
+            <h2 class="section-title">II. Maersk의 ECR 혁신 사례</h2>
+            <p class="mb-6 text-gray-600">글로벌 통합 물류 선도 기업인 Maersk는 ECR 문제 해결을 위해 기술 발전과 운영 효율성 향상에 전략적으로 투자하고 있습니다. 데이터 분석, IoT, 예측 기술 및 구체적인 운영 전략을 통해 공컨테이너 흐름을 최적화하려는 Maersk의 주요 혁신 사례들을 소개합니다. (보고서 II)</p>
+            
+            <div class="card">
+                <div class="flex border-b border-gray-200 mb-4">
+                    <button class="tab-button active" data-tab="maersk-tech">기술 활용</button>
+                    <button class="tab-button" data-tab="maersk-strategy">운영 전략</button>
+                    <button class="tab-button" data-tab="maersk-or">수학적 최적화</button>
+                </div>
+
+                <div id="maersk-tech" class="tab-content active">
+                    <h4 class="font-semibold text-md mb-3 text-violet-600">첨단 기술 도입 및 활용</h4>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div class="p-3 bg-violet-50 rounded">
+                            <h5 class="font-semibold text-violet-700 flex items-center"><span class="text-2xl mr-2">📡</span>차세대 IoT 연결성</h5>
+                            <p class="text-sm text-gray-600">450척 선박에 4G IoT 플랫폼 배포, 실시간 데이터 확보 및 운영 통찰력 강화. (보고서 II.A, 표1)</p>
+                        </div>
+                        <div class="p-3 bg-violet-50 rounded">
+                            <h5 class="font-semibold text-violet-700 flex items-center"><span class="text-2xl mr-2">🧠</span>컨테이너 상태 예측 ML</h5>
+                            <p class="text-sm text-gray-600">머신러닝으로 컨테이너 손상 예측, 수리 사전 계획 및 흐름 효율성 개선. (보고서 II.B, 표1)</p>
+                        </div>
+                        <div class="p-3 bg-violet-50 rounded">
+                            <h5 class="font-semibold text-violet-700 flex items-center"><span class="text-2xl mr-2">✨</span>생성형 AI 탐색</h5>
+                            <p class="text-sm text-gray-600">경로 최적화, 수요 예측, 창고 관리 등 다양한 물류 혁신에 GenAI 잠재력 모색. (보고서 II.B, 표1)</p>
+                        </div>
+                         <div class="p-3 bg-violet-50 rounded">
+                            <h5 class="font-semibold text-violet-700 flex items-center"><span class="text-2xl mr-2">🚢</span>선박 예측 유지보수</h5>
+                            <p class="text-sm text-gray-600">AI 기반 예측 유지보수로 선박 가동 중단 시간 30% 감소. (보고서 II.B)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="maersk-strategy" class="tab-content">
+                    <h4 class="font-semibold text-md mb-3 text-violet-600">구체적인 운영 전략</h4>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div class="p-3 bg-violet-50 rounded">
+                            <h5 class="font-semibold text-violet-700 flex items-center"><span class="text-2xl mr-2">🔄</span>공컨테이너 삼각운송 (Street Turns)</h5>
+                            <p class="text-sm text-gray-600 mb-1">하역된 빈 컨테이너를 야적장을 거치지 않고 인근 수출 수요처로 바로 보내 불필요한 이동 최소화. Avantida 플랫폼 활용. (보고서 II.D, 표1)</p>
+                            <p class="text-xs text-gray-500">중국 사례: 컨테이너 재활용률 +67%, $CO_2$ 배출량 -40%</p>
+                        </div>
+                        <div class="p-3 bg-violet-50 rounded">
+                            <h5 class="font-semibold text-violet-700 flex items-center"><span class="text-2xl mr-2">🏗️</span>신규 물류 센터 구축</h5>
+                            <p class="text-sm text-gray-600">전략적 위치(예: 보고타)에 대규모 물류 센터 설립으로 컨테이너 가용성 및 운영 효율성 증대. (보고서 II.D, 표1)</p>
+                        </div>
+                        <div class="p-3 bg-violet-50 rounded md:col-span-2">
+                            <h5 class="font-semibold text-violet-700 flex items-center"><span class="text-2xl mr-2">🗺️</span>네트워크 조정</h5>
+                            <p class="text-sm text-gray-600">항만 기항 순서 최적화 등 네트워크 조정을 통해 효율적인 컨테이너 흐름 기여. (보고서 II.D)</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="maersk-or" class="tab-content">
+                    <h4 class="font-semibold text-md mb-3 text-violet-600">수학적 최적화의 역할</h4>
+                    <p class="text-sm text-gray-600 mb-2">Maersk는 운영 연구 과학자 채용 및 SDDP(확률적 이중 동적 프로그래밍)와 같은 고급 연구 참여를 통해 정교한 수학적 최적화 기법을 활용하고 있음을 시사합니다. (보고서 II.C, 표1)</p>
+                    <p class="text-sm text-gray-600">ECR 문제의 복잡성은 본질적으로 최적화 기술을 필요로 하며, Maersk의 전략은 디지털 인프라 구축, ML 적용, 고급 OR 모델 및 AI 탐색을 결합한 단계적이고 통합적인 접근 방식을 취하는 것으로 보입니다. 이는 순수 OR이나 순수 ML/AI가 아닌 하이브리드 최적화를 지향합니다.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="optimization-models" class="mb-12 scroll-mt-20">
+            <h2 class="section-title">III. ECR 최적화를 위한 수학적 모델</h2>
+            <p class="mb-6 text-gray-600">ECR 문제를 해결하기 위해 다양한 수학적 모델과 알고리즘이 연구되고 적용됩니다. 각 모델은 특정 가정하에 비용 최소화, 수요 충족, 불확실성 관리 등 다양한 목표를 추구합니다. 이 섹션에서는 주요 모델 유형과 그 특징을 소개합니다. (보고서 III, 표2)</p>
+
+            <div class="card">
+                 <div class="flex border-b border-gray-200 mb-4 flex-wrap">
+                    <button class="tab-button active" data-tab="model-deterministic">결정론적</button>
+                    <button class="tab-button" data-tab="model-stochastic">확률론적</button>
+                    <button class="tab-button" data-tab="model-dynamic">동적/순차적</button>
+                    <button class="tab-button" data-tab="model-advanced">고급/AI</button>
+                </div>
+
+                <div id="model-deterministic" class="tab-content active">
+                    <h4 class="font-semibold text-md mb-2 text-violet-600">결정론적 접근 방식</h4>
+                    <p class="text-sm text-gray-600 mb-3">모든 변수(수요, 비용 등)가 확실하다고 가정.</p>
+                    <div class="space-y-3">
+                        <div class="p-3 bg-violet-50 rounded">
+                            <h5 class="font-semibold text-violet-700">선형/정수 계획법 (LP/IP)</h5>
+                            <p class="text-xs text-gray-500">총비용 최소화 목표. 전략/전술 계획에 유용. (예: $\sum (cost_{ij} \cdot x_{ij})$ 최소화)</p>
+                        </div>
+                        <div class="p-3 bg-violet-50 rounded">
+                            <h5 class="font-semibold text-violet-700">네트워크 흐름 모델</h5>
+                            <p class="text-xs text-gray-500">최소 비용 흐름 탐색. 시공간 네트워크 활용. 대규모 문제 시각화 및 해결에 적합.</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="model-stochastic" class="tab-content">
+                    <h4 class="font-semibold text-md mb-2 text-violet-600">확률론적 접근 방식 (불확실성 처리)</h4>
+                    <p class="text-sm text-gray-600 mb-3">수요, 이동 시간 등의 불확실성을 명시적으로 통합.</p>
+                     <div class="space-y-3">
+                        <div class="p-3 bg-violet-50 rounded">
+                            <h5 class="font-semibold text-violet-700">확률적 계획법</h5>
+                            <p class="text-xs text-gray-500">예상 총비용 최소화 목표. 2단계 모델(현시점 결정 + 대응 조치) 등.</p>
+                        </div>
+                        <div class="p-3 bg-violet-50 rounded">
+                            <h5 class="font-semibold text-violet-700">강인 최적화</h5>
+                            <p class="text-xs text-gray-500">최악의 경우 성능에 중점. 분포 추정 어려울 때 유용.</p>
+                        </div>
+                         <div class="p-3 bg-violet-50 rounded">
+                            <h5 class="font-semibold text-violet-700">확률 제약 계획법</h5>
+                            <p class="text-xs text-gray-500">제약 조건 위반을 특정 확률로 허용. (예: 수요 95% 충족)</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="model-dynamic" class="tab-content">
+                    <h4 class="font-semibold text-md mb-2 text-violet-600">동적 및 순차적 의사결정 모델</h4>
+                    <p class="text-sm text-gray-600 mb-3">시간 경과 및 새 정보에 따라 순차적 결정.</p>
+                     <div class="space-y-3">
+                        <div class="p-3 bg-violet-50 rounded">
+                            <h5 class="font-semibold text-violet-700">동적 계획법 (DP)</h5>
+                            <p class="text-xs text-gray-500">다기간 문제를 하위 문제로 분해. 벨만 방정식 활용. 재고 수준 제어.</p>
+                        </div>
+                        <div class="p-3 bg-violet-50 rounded">
+                            <h5 class="font-semibold text-violet-700">마르코프 결정 과정 (MDP)</h5>
+                            <p class="text-xs text-gray-500">확률적 동적 시스템에서 최적 정책 탐색. 다양한 리드 타임, 운송 모드 고려.</p>
+                        </div>
+                    </div>
+                </div>
+                 <div id="model-advanced" class="tab-content">
+                    <h4 class="font-semibold text-md mb-2 text-violet-600">고급 계산 기법 및 AI</h4>
+                     <p class="text-sm text-gray-600 mb-3">복잡한 문제 해결 및 예측 정확도 향상.</p>
+                     <div class="space-y-3">
+                        <div class="p-3 bg-violet-50 rounded">
+                            <h5 class="font-semibold text-violet-700">휴리스틱/메타휴리스틱</h5>
+                            <p class="text-xs text-gray-500">NP-난해 문제에 대한 근사 해법 (GA, SA 등). 대규모 모델 해결.</p>
+                        </div>
+                        <div class="p-3 bg-violet-50 rounded">
+                            <h5 class="font-semibold text-violet-700">머신러닝(ML)/AI 기반 최적화</h5>
+                            <p class="text-xs text-gray-500">수요 예측, 손상 예측, 이동 시간 추정, 강화학습(RL) 등. 하이브리드 모델.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 p-4 bg-violet-100 rounded-lg">
+                <h4 class="font-semibold text-md mb-2 text-violet-700">ECR 모델 발전 동향: 하이브리드 접근</h4>
+                <div class="flex flex-col md:flex-row justify-around items-center">
+                    <div class="flow-diagram-step text-sm">결정론적 모델<br/>(단순화된 가정)</div>
+                    <div class="flow-diagram-arrow md:transform md:rotate-0 transform rotate-90">&rarr;</div>
+                    <div class="flow-diagram-step text-sm">확률론적 모델<br/>(불확실성 반영)</div>
+                    <div class="flow-diagram-arrow md:transform md:rotate-0 transform rotate-90">&rarr;</div>
+                    <div class="flow-diagram-step text-sm">ML/AI 통합 모델<br/>(예측력 + 규범력)</div>
+                </div>
+                <p class="text-xs text-gray-600 mt-2 text-center">데이터 가용성 증대와 계산 능력 향상에 따라, ML의 예측 능력과 OR의 규범적 의사결정 능력을 결합한 하이브리드 모델이 ECR 문제 해결의 주요 추세입니다. (보고서 III.D)</p>
+            </div>
+        </section>
+
+        <section id="quantitative-impacts" class="mb-12 scroll-mt-20">
+            <h2 class="section-title">IV. ECR 최적화의 정량적 효과</h2>
+            <p class="mb-6 text-gray-600">효과적인 ECR 최적화는 선사에게 비용 절감, 운영 효율성 향상, 환경 보호 등 다양한 정량적 이점을 제공합니다. 이 섹션에서는 주요 연구 및 사례를 통해 ECR 최적화의 구체적인 효과를 살펴봅니다. (보고서 IV)</p>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="card">
+                    <h3 class="font-semibold text-lg mb-3 text-violet-700">주요 비용 절감 영역 (삼각운송 등 최적화 전략)</h3>
+                    <div class="chart-container h-72 md:h-80">
+                        <canvas id="costSavingsChart"></canvas>
+                    </div>
+                    <p class="text-xs text-gray-500 text-center mt-2">출처: 보고서 IV.A (인용문헌 [12] 기반)</p>
+                </div>
+                <div class="card">
+                    <h3 class="font-semibold text-lg mb-3 text-violet-700">자산 활용도 및 환경적 이점 (Maersk 삼각운송 사례)</h3>
+                    <div class="space-y-4">
+                        <div class="text-center p-3 bg-violet-50 rounded">
+                            <p class="stat-value" data-tooltip-text="보고서 II.D, IV.B (인용문헌 [28, 30])">+67%</p>
+                            <p class="stat-label">컨테이너 재활용률 증가</p>
+                        </div>
+                        <div class="text-center p-3 bg-violet-50 rounded">
+                            <p class="stat-value" data-tooltip-text="보고서 II.D, IV.C (인용문헌 [28, 30])">-40%</p>
+                            <p class="stat-label">$CO_2$ 배출량 감소</p>
+                        </div>
+                         <div class="text-center p-3 bg-violet-50 rounded">
+                            <p class="stat-value" data-tooltip-text="보고서 IV.B (인용문헌 [12])">8-10%</p>
+                            <p class="stat-label">리드 타임 단축</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card mt-6">
+                 <h3 class="font-semibold text-lg mb-2 text-violet-700">시너지 효과 및 경쟁 우위</h3>
+                 <p class="text-sm text-gray-600">ECR 최적화는 비용 절감, 효율성 향상, 환경 보호 간의 시너지를 창출합니다. 예를 들어, 이동 거리 단축은 연료비와 배출가스를 동시에 줄입니다. 또한, 안정적인 컨테이너 공급과 잠재적 가격 경쟁력은 시장에서 중요한 경쟁 우위로 작용할 수 있습니다. (보고서 IV.C)</p>
+            </div>
+        </section>
+
+        <section id="challenges-future" class="scroll-mt-20">
+            <h2 class="section-title">V. 도전과제 및 미래 전망</h2>
+            <p class="mb-6 text-gray-600">ECR 최적화는 많은 이점에도 불구하고 구현 과정에서 다양한 장애물에 직면합니다. 동시에, 새로운 기술과 연구는 ECR 문제 해결의 미래를 밝게 하고 있습니다. 이 섹션에서는 주요 도전과제와 미래 기술 동향을 논의합니다. (보고서 V)</p>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="card">
+                    <h3 class="font-semibold text-lg mb-3 text-violet-700">ECR 최적화의 주요 장애물</h3>
+                    <ul class="list-none space-y-2 text-sm">
+                        <li class="flex items-start"><span class="text-lg mr-2 text-violet-500">💾</span><div><b>데이터 문제:</b> 방대한 데이터 요구, 품질 저하, 데이터 사일로 (보고서 V.A)</div></li>
+                        <li class="flex items-start"><span class="text-lg mr-2 text-violet-500">🔗</span><div><b>시스템 통합:</b> 다양한 IT 시스템 간 상호 운용성 부족 (보고서 V.A)</div></li>
+                        <li class="flex items-start"><span class="text-lg mr-2 text-violet-500">🤝</span><div><b>이해관계자 협업:</b> 상충되는 목표를 가진 다수 참여자 간 협력의 어려움 (보고서 V.A)</div></li>
+                        <li class="flex items-start"><span class="text-lg mr-2 text-violet-500">💰</span><div><b>비용 및 전문성:</b> 고급 시스템 도입 및 유지보수의 높은 비용 (보고서 V.A)</div></li>
+                        <li class="flex items-start"><span class="text-lg mr-2 text-violet-500">🌪️</span><div><b>불확실성 및 변동성:</b> 시장 상황, 외부 이벤트로 인한 지속적 변화 (보고서 V.A)</div></li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3 class="font-semibold text-lg mb-3 text-violet-700">미래 기술 및 연구 분야</h3>
+                     <ul class="list-none space-y-2 text-sm">
+                        <li class="flex items-start"><span class="text-lg mr-2 text-violet-500">🤖</span><div><b>심층 강화 학습 (DRL):</b> 복잡/동적 환경에서 최적 정책 학습 (보고서 V.B)</div></li>
+                        <li class="flex items-start"><span class="text-lg mr-2 text-violet-500">💻</span><div><b>디지털 트윈:</b> 가상 환경에서 전략 시뮬레이션 및 최적화 (보고서 V.B)</div></li>
+                        <li class="flex items-start"><span class="text-lg mr-2 text-violet-500">🌐</span><div><b>초연결성 (Hyperconnectivity):</b> 5G, 고급 IoT, 블록체인 활용 (보고서 V.B)</div></li>
+                        <li class="flex items-start"><span class="text-lg mr-2 text-violet-500">⚛️</span><div><b>양자 컴퓨팅 (장기적):</b> 초고도 복잡성 문제 해결 기대 (보고서 V.B)</div></li>
+                        <li class="flex items-start"><span class="text-lg mr-2 text-violet-500">🌿</span><div><b>지속 가능성 중심 모델:</b> 환경 영향을 핵심 목표로 통합 (보고서 V.B)</div></li>
+                    </ul>
+                </div>
+            </div>
+             <div class="card mt-6">
+                <h3 class="font-semibold text-lg mb-2 text-violet-700">종합적 접근의 중요성</h3>
+                <p class="text-sm text-gray-600">기술 발전 외에도 조직 변화, 직원 역량 강화, 업계 표준화 및 협업 플랫폼 구축이 성공적인 ECR 최적화에 필수적입니다. 데이터 수집 기술의 발전과 정교한 모델 사용 간의 선순환 구조, 그리고 예측 기반의 전략적 위험 관리 기능으로의 전환이 중요합니다. (보고서 V.B)</p>
+            </div>
+        </section>
+        
+        <section id="conclusion" class="text-center py-10 bg-violet-100 rounded-lg scroll-mt-20">
+            <h2 class="section-title !text-violet-700">VI. 결론: 지능적이고 지속 가능한 컨테이너 물류를 향하여</h2>
+            <div class="max-w-3xl mx-auto px-4">
+                <p class="text-gray-700 mb-4">
+                    공컨테이너 재배치(ECR)는 글로벌 해운 물류의 복잡하고 비용이 많이 드는 과제이지만, Maersk 사례에서 보듯 데이터 기반 수학적 최적화와 첨단 기술 도입은 이 문제를 해결하고 경쟁 우위를 확보하는 핵심 동력입니다. (보고서 VI)
+                </p>
+                <p class="text-gray-700">
+                    미래 물류 산업은 더욱 지능적이고, 적응력이 뛰어나며, 협력적이고, 지속 가능한 ECR 관행을 향해 나아갈 것입니다. 이를 위해 최적화 기술의 지속적인 혁신과 산업 전반의 노력이 중요합니다.
+                </p>
+            </div>
+        </section>
+    </main>
+
+    <footer class="text-center py-8 mt-12 border-t border-gray-200">
+        <p class="text-sm text-gray-500">본 애플리케이션은 제공된 "공컨테이너 재배치 최적화 모델 연구" 보고서(ID: 16d5969d-161f-453f-9e89-2d7bfc8df400)를 기반으로 제작되었습니다.</p>
+        <p class="text-sm text-gray-500">Interactive SPA by Gemini</p>
+    </footer>
+    
+    <div id="custom-tooltip" class="tooltip"></div>
+
+    <script>
+        const palette = {
+            accent1: '#8B5CF6', // Violet-500
+            accent2: '#A78BFA', // Violet-400
+            accent3: '#C4B5FD', // Violet-300
+            textPrimary: '#374151', // Gray-700
+            textSecondary: '#6B7280', // Gray-500
+            backgroundLight: '#F5F3FF' // Violet-50
+        };
+
+        function processLabel(label, maxLength = 16) {
+            if (typeof label !== 'string') return label; // Handle non-string labels
+            if (label.length <= maxLength) return label;
+            const words = label.split(' ');
+            const lines = [];
+            let currentLine = '';
+            for (const word of words) {
+                if ((currentLine + word).length > maxLength && currentLine.length > 0) {
+                    lines.push(currentLine.trim());
+                    currentLine = word + ' ';
+                } else {
+                    currentLine += word + ' ';
+                }
+            }
+            if (currentLine.trim().length > 0) lines.push(currentLine.trim());
+            return lines.length > 0 ? lines : [label]; // Ensure it returns an array for multiline or single line
+        }
+        
+        const commonTooltipCallback = {
+            title: function(tooltipItems) {
+                const item = tooltipItems[0];
+                if (!item || !item.chart || !item.chart.data || !item.chart.data.labels || typeof item.dataIndex === 'undefined') return '';
+                let label = item.chart.data.labels[item.dataIndex];
+                if (Array.isArray(label)) return label.join(' ');
+                return label;
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', function () {
+            // Navigation highlighting
+            const navLinks = document.querySelectorAll('#main-nav a');
+            const sections = document.querySelectorAll('main section');
+            
+            function changeNavHighlight() {
+                let index = sections.length;
+                while(--index && window.scrollY + 100 < sections[index].offsetTop) {}
+                navLinks.forEach((link) => link.classList.remove('active'));
+                if (index >= 0 && navLinks[index]) {
+                     navLinks[index].classList.add('active');
+                }
+            }
+            changeNavHighlight();
+            window.addEventListener('scroll', changeNavHighlight);
+
+            // Tabs functionality
+            const tabContainers = document.querySelectorAll('.card > .flex.border-b');
+            tabContainers.forEach(container => {
+                const tabButtons = container.querySelectorAll('.tab-button');
+                const tabContents = container.parentElement.querySelectorAll('.tab-content');
+
+                tabButtons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        tabButtons.forEach(btn => btn.classList.remove('active'));
+                        button.classList.add('active');
+                        const targetTab = button.getAttribute('data-tab');
+                        tabContents.forEach(content => {
+                            content.classList.remove('active');
+                            if (content.id === targetTab) {
+                                content.classList.add('active');
+                            }
+                        });
+                    });
+                });
+            });
+
+            // Tooltip functionality for stats
+            const tooltipElements = document.querySelectorAll('[data-tooltip-text]');
+            const customTooltip = document.getElementById('custom-tooltip');
+
+            tooltipElements.forEach(el => {
+                el.addEventListener('mouseenter', (event) => {
+                    customTooltip.textContent = el.getAttribute('data-tooltip-text');
+                    customTooltip.style.display = 'block';
+                    customTooltip.style.left = event.pageX + 10 + 'px';
+                    customTooltip.style.top = event.pageY + 10 + 'px';
+                });
+                el.addEventListener('mouseleave', () => {
+                    customTooltip.style.display = 'none';
+                });
+                el.addEventListener('mousemove', (event) => {
+                    customTooltip.style.left = event.pageX + 10 + 'px';
+                    customTooltip.style.top = event.pageY + 10 + 'px';
+                });
+            });
+
+
+            // Chart 1: ECR Operating Cost
+            const ecrOpCostCtx = document.getElementById('ecrOperatingCostChart');
+            if (ecrOpCostCtx) {
+                new Chart(ecrOpCostCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: [processLabel('ECR 비용 (5-8%)'), processLabel('기타 운영 비용')],
+                        datasets: [{
+                            data: [6.5, 93.5], // Mid-point of 5-8%
+                            backgroundColor: [palette.accent1, palette.accent3],
+                            borderColor: [palette.backgroundLight],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true, position: 'bottom', labels: { color: palette.textSecondary, font: {size: 10} } },
+                            tooltip: { callbacks: commonTooltipCallback }
+                        }
+                    }
+                });
+            }
+
+            // Chart 2: Cost Savings
+            const costSavingsCtx = document.getElementById('costSavingsChart');
+            if (costSavingsCtx) {
+                new Chart(costSavingsCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: [processLabel('물류비용 절감'), processLabel('트럭운송비 절감'), processLabel('연료비 절감')],
+                        datasets: [{
+                            label: '잠재적 비용 절감률 (%)',
+                            data: [30, 14, 18], // Using upper bounds from report IV.A (citing [12])
+                            backgroundColor: [palette.accent1, palette.accent2, palette.accent3],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, max: 35, ticks: { callback: function(v) { return v + '%'}, color: palette.textSecondary }, grid: { color: '#e0e0e0' } },
+                            x: { ticks: { color: palette.textSecondary } }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { 
+                                callbacks: { 
+                                    ...commonTooltipCallback,
+                                    label: function(c) { return (c.dataset.label || '') + ': ' + c.parsed.y + '%'; }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
