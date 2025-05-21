@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECR 최적화 핵심 요약 (캔버스)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #f0f8ff; /* AliceBlue */ padding: 20px; }
+        canvas { background-color: #ffffff; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <canvas id="ecrCanvas" width="800" height="1150"></canvas>
+
+    <script>
+        const canvas = document.getElementById('ecrCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- Helper Functions ---
+        function drawRoundedRect(x, y, width, height, radius, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawText(text, x, y, font = '16px Arial', color = '#333', textAlign = 'left', baseline = 'top') {
+            ctx.font = font;
+            ctx.fillStyle = color;
+            ctx.textAlign = textAlign;
+            ctx.textBaseline = baseline;
+            if (Array.isArray(text)) {
+                let currentY = y;
+                const lineHeight = parseInt(font, 10) * 1.2;
+                text.forEach(line => {
+                    ctx.fillText(line, x, currentY);
+                    currentY += lineHeight;
+                });
+            } else {
+                ctx.fillText(text, x, y);
+            }
+        }
+
+        function drawPieSlice(centerX, centerY, radius, startAngle, endAngle, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // --- Colors (Brilliant Blues Palette - adapted) ---
+        const colors = {
+            primaryDark: '#0D244F', // Dark Navy Blue
+            accent1: '#00509D',     // Deep Blue
+            accent2: '#0079C1',     // Medium Blue
+            accent3: '#00A9E0',     // Bright Blue
+            accent4: '#4BC8F0',     // Light Sky Blue
+            textLight: '#FFFFFF',
+            textDark: '#333333',
+            bgLight: '#F0F8FF',     // AliceBlue (used for page, not canvas elements)
+            cardBg: '#EBF8FF',      // Lighter blue for cards
+            grey: '#D1D5DB'         // Tailwind Gray-300
+        };
+
+        // --- Canvas Drawing ---
+        let currentY = 0;
+
+        // Section 0: Main Title
+        currentY = 50;
+        drawText('공컨테이너 재배치(ECR) 최적화 핵심 요약', canvas.width / 2, currentY, 'bold 28px Arial', colors.primaryDark, 'center');
+        currentY += 60;
+        ctx.strokeStyle = colors.grey;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(50, currentY - 20);
+        ctx.lineTo(canvas.width - 50, currentY - 20);
+        ctx.stroke();
+
+
+        // Section 1: ECR 문제 심각성
+        drawText('I. ECR 문제의 심각성', 50, currentY, 'bold 20px Arial', colors.accent1);
+        currentY += 40;
+
+        drawRoundedRect(50, currentY, canvas.width - 100, 120, 10, colors.cardBg);
+        drawText('연간 ECR 추정 비용:', 70, currentY + 20, '18px Arial', colors.primaryDark);
+        drawText('$150억 - $200억', 70, currentY + 50, 'bold 28px Arial', colors.accent2);
+        drawText('(선사 운영 비용의 5-8%)', 70, currentY + 85, '14px Arial', colors.textDark);
+
+        // Simple Pie for ECR 운영 비용 비중 (8%)
+        const pieCenterX = canvas.width - 150;
+        const pieCenterY = currentY + 60;
+        const pieRadius = 40;
+        drawText('ECR 운영 비용 비중', pieCenterX, currentY + 10, '14px Arial', colors.primaryDark, 'center');
+        drawPieSlice(pieCenterX, pieCenterY, pieRadius, 0, Math.PI * 2 * 0.08, colors.accent1); // 8%
+        drawPieSlice(pieCenterX, pieCenterY, pieRadius, Math.PI * 2 * 0.08, Math.PI * 2, colors.accent4); // Remaining 92%
+        drawText('8%', pieCenterX + pieRadius + 15, pieCenterY - 5, 'bold 14px Arial', colors.accent1);
+        currentY += 120 + 30; // card height + padding
+
+        // Section 2: Maersk 혁신 (삼각운송)
+        drawText('II. Maersk 혁신: 삼각운송 효과', 50, currentY, 'bold 20px Arial', colors.accent1);
+        currentY += 40;
+
+        drawRoundedRect(50, currentY, (canvas.width - 130) / 2, 100, 10, colors.cardBg);
+        drawText('컨테이너 재활용률', 60 + ((canvas.width - 130) / 2 - 20)/2, currentY + 20, '16px Arial', colors.primaryDark, 'center');
+        drawText('+67%', 60 + ((canvas.width - 130) / 2 - 20)/2, currentY + 55, 'bold 26px Arial', colors.accent2, 'center');
+
+        drawRoundedRect(50 + (canvas.width - 130) / 2 + 30, currentY, (canvas.width - 130) / 2, 100, 10, colors.cardBg);
+        drawText('$CO_2$ 배출량 감소', 50 + (canvas.width - 130) / 2 + 30 + ((canvas.width - 130) / 2 -20)/2 , currentY + 20, '16px Arial', colors.primaryDark, 'center');
+        drawText('-40%', 50 + (canvas.width - 130) / 2 + 30 + ((canvas.width - 130) / 2-20)/2, currentY + 55, 'bold 26px Arial', colors.accent2, 'center');
+        currentY += 100 + 30;
+
+        // Section 3: 수학적 모델
+        drawText('III. 주요 최적화 모델 유형', 50, currentY, 'bold 20px Arial', colors.accent1);
+        currentY += 40;
+        const modelTypes = ['결정론적', '확률론적', '동적/순차적', 'ML/AI 기반'];
+        const modelCardWidth = (canvas.width - 100 - (modelTypes.length - 1) * 15) / modelTypes.length;
+        let currentXModels = 50;
+        modelTypes.forEach(type => {
+            drawRoundedRect(currentXModels, currentY, modelCardWidth, 60, 8, colors.cardBg);
+            drawText(type, currentXModels + modelCardWidth / 2, currentY + 30, '13px Arial', colors.primaryDark, 'center', 'middle');
+            currentXModels += modelCardWidth + 15;
+        });
+        currentY += 60 + 30;
+
+        // Section 4: 정량적 효과 (비용 절감)
+        drawText('IV. 주요 비용 절감 영역 (최적화 시)', 50, currentY, 'bold 20px Arial', colors.accent1);
+        currentY += 40;
+
+        const savingsData = [
+            { label: '물류비용', value: 30, color: colors.accent1 },
+            { label: '트럭운송비', value: 14, color: colors.accent2 },
+            { label: '연료비', value: 18, color: colors.accent3 }
+        ];
+        const barChartStartY = currentY + 20;
+        const barMaxHeight = 120;
+        const barWidth = 60;
+        const barSpacing = 40;
+        const chartAreaWidth = savingsData.length * (barWidth + barSpacing) - barSpacing;
+        let barChartStartX = (canvas.width - chartAreaWidth) / 2;
+        
+        drawText('절감률 (%)', barChartStartX - 50, barChartStartY + barMaxHeight / 2, '12px Arial', colors.textDark, 'center', 'middle');
+
+        savingsData.forEach((item, index) => {
+            const barHeight = (item.value / 35) * barMaxHeight; // Max value for scale is 35%
+            const barX = barChartStartX + index * (barWidth + barSpacing);
+            
+            // Bar
+            ctx.fillStyle = item.color;
+            ctx.fillRect(barX, barChartStartY + barMaxHeight - barHeight, barWidth, barHeight);
+            
+            // Label
+            drawText(item.label, barX + barWidth / 2, barChartStartY + barMaxHeight + 15, '13px Arial', colors.primaryDark, 'center');
+            // Value on top
+            drawText(item.value + '%', barX + barWidth / 2, barChartStartY + barMaxHeight - barHeight - 8, 'bold 13px Arial', item.color, 'center', 'bottom');
+        });
+        currentY += barMaxHeight + 50; // chart height + padding
+
+        // Section 5: 환경적 영향
+        drawText('V. 환경적 영향 (최적화 시)', 50, currentY, 'bold 20px Arial', colors.accent1);
+        currentY += 30;
+        drawRoundedRect(50, currentY, canvas.width - 100, 80, 10, colors.cardBg);
+        drawText([
+            '• 불필요한 공컨테이너 이동 감소로 연료 소비 및 $CO_2$ 배출량 저감.',
+            '• 도로 혼잡 완화 및 지역 대기오염 개선에 기여.'
+            ], 70, currentY + 15, '15px Arial', colors.primaryDark);
+        currentY += 80 + 30;
+
+        // Section 6: 결론 요약
+        drawText('VI. 결론: 지능형 및 지속 가능한 물류', 50, currentY, 'bold 20px Arial', colors.accent1);
+        currentY += 30;
+        drawRoundedRect(50, currentY, canvas.width - 100, 100, 10, colors.cardBg);
+        drawText([
+            '• ECR 최적화는 비용 절감, 효율성 향상, 환경 보호에 필수적입니다.',
+            '• 데이터 기반 수학적 최적화와 첨단 기술(IoT, ML, AI)이 핵심 동력입니다.',
+            '• 미래 물류는 더욱 지능적, 적응적, 협력적, 지속 가능하게 발전할 것입니다.'
+            ], 70, currentY + 15, '14px Arial', colors.primaryDark);
+        currentY += 100 + 30;
+
+        // Footer
+        ctx.strokeStyle = colors.grey;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(50, currentY -15);
+        ctx.lineTo(canvas.width - 50, currentY -15);
+        ctx.stroke();
+        drawText('본 내용은 "공컨테이너 재배치 최적화" 연구 요약입니다. (캔버스 시각화)', canvas.width / 2, currentY, '12px Arial', colors.textSecondary, 'center');
+
+    </script>
+</body>
+</html>
